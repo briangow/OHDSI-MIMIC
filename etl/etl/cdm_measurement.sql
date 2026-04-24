@@ -51,6 +51,8 @@ CREATE OR REPLACE TABLE @etl_project.@etl_dataset.cdm_measurement
     measurement_source_concept_id INT64              ,
     unit_source_value             STRING             ,
     value_source_value            STRING             ,
+    measurement_event_id          INT64              ,
+    meas_event_field_concept_id   INT64              ,
     -- 
     unit_id                       STRING,
     load_table_id                 STRING,
@@ -87,6 +89,8 @@ SELECT
     src.source_concept_id                   AS measurement_source_concept_id,
     src.unit_source_value                   AS unit_source_value,
     src.value_source_value                  AS value_source_value,
+    CAST(NULL AS INT64)                     AS measurement_event_id,
+    CAST(NULL AS INT64)                     AS meas_event_field_concept_id,
     --
     CONCAT('measurement.', src.unit_id)     AS unit_id,
     src.load_table_id               AS load_table_id,
@@ -99,9 +103,11 @@ INNER JOIN
         ON CAST(src.subject_id AS STRING) = per.person_source_value
 INNER JOIN
     @etl_project.@etl_dataset.cdm_visit_occurrence vis -- 116,559
-        ON  vis.visit_source_value = 
-            CONCAT(CAST(src.subject_id AS STRING), '|', 
-                COALESCE(CAST(src.hadm_id AS STRING), CAST(src.date_id AS STRING)))
+        ON  vis.subject_id = src.subject_id
+        AND (
+            vis.hadm_id = src.hadm_id
+            OR vis.hadm_id IS NULL AND vis.date_id = src.date_id
+        )
 WHERE
     src.target_domain_id = 'Measurement' -- 115,272
 ;
@@ -133,6 +139,8 @@ SELECT
     src.source_concept_id                   AS measurement_source_concept_id,
     src.unit_source_value                   AS unit_source_value,
     src.value_source_value                  AS value_source_value,
+    CAST(NULL AS INT64)                     AS measurement_event_id,
+    CAST(NULL AS INT64)                     AS meas_event_field_concept_id,
     --
     CONCAT('measurement.', src.unit_id)     AS unit_id,
     src.load_table_id               AS load_table_id,
@@ -145,8 +153,7 @@ INNER JOIN
         ON CAST(src.subject_id AS STRING) = per.person_source_value
 INNER JOIN
     @etl_project.@etl_dataset.cdm_visit_occurrence vis
-        ON  vis.visit_source_value = 
-            CONCAT(CAST(src.subject_id AS STRING), '|', CAST(src.hadm_id AS STRING))
+        ON  vis.subject_id = src.subject_id AND vis.hadm_id = src.hadm_id
 WHERE
     src.target_domain_id = 'Measurement'
 ;
@@ -178,6 +185,8 @@ SELECT
     src.source_concept_id                   AS measurement_source_concept_id,
     CAST(NULL AS STRING)                    AS unit_source_value,
     src.value_source_value                  AS value_source_value,
+    CAST(NULL AS INT64)                     AS measurement_event_id,
+    CAST(NULL AS INT64)                     AS meas_event_field_concept_id,
     --
     CONCAT('measurement.', src.unit_id)     AS unit_id,
     src.load_table_id               AS load_table_id,
@@ -190,9 +199,11 @@ INNER JOIN
         ON CAST(src.subject_id AS STRING) = per.person_source_value
 INNER JOIN
     @etl_project.@etl_dataset.cdm_visit_occurrence vis -- 116,559
-        ON  vis.visit_source_value = 
-            CONCAT(CAST(src.subject_id AS STRING), '|', 
-                COALESCE(CAST(src.hadm_id AS STRING), CAST(src.date_id AS STRING)))
+        ON  vis.subject_id = src.subject_id
+        AND (
+            vis.hadm_id = src.hadm_id
+            OR vis.hadm_id IS NULL AND vis.date_id = src.date_id
+        )
 WHERE
     src.target_domain_id = 'Measurement'
 ;
@@ -224,6 +235,8 @@ SELECT
     src.source_concept_id                   AS measurement_source_concept_id,
     CAST(NULL AS STRING)                    AS unit_source_value,
     src.value_source_value                  AS value_source_value, -- resistance source value
+    CAST(NULL AS INT64)                     AS measurement_event_id,
+    CAST(NULL AS INT64)                     AS meas_event_field_concept_id,
     --
     CONCAT('measurement.', src.unit_id)     AS unit_id,
     src.load_table_id               AS load_table_id,
@@ -236,9 +249,7 @@ INNER JOIN
         ON CAST(src.subject_id AS STRING) = per.person_source_value
 INNER JOIN
     @etl_project.@etl_dataset.cdm_visit_occurrence vis -- 116,559
-        ON  vis.visit_source_value = 
-            CONCAT(CAST(src.subject_id AS STRING), '|', 
-                COALESCE(CAST(src.hadm_id AS STRING), CAST(src.date_id AS STRING)))
+        ON  vis.subject_id = src.subject_id AND vis.hadm_id = src.hadm_id
 WHERE
     src.target_domain_id = 'Measurement'
 ;
@@ -251,31 +262,31 @@ WHERE
 
 INSERT INTO @etl_project.@etl_dataset.cdm_measurement
 SELECT
-    FARM_FINGERPRINT(GENERATE_UUID())       AS measurement_id,
-    per.person_id                           AS person_id,
-    COALESCE(src.target_concept_id, 0)      AS measurement_concept_id,
-    CAST(src.start_datetime AS DATE)        AS measurement_date,
-    src.start_datetime                      AS measurement_datetime,
-    CAST(NULL AS STRING)                    AS measurement_time, -- deprecated, to be removed in later versions
-    32817                                   AS measurement_type_concept_id, -- OMOP4976890 EHR
-    CAST(NULL AS INT64)                     AS operator_concept_id,
-    src.value_as_number                     AS value_as_number,
-    CAST(NULL AS INT64)                     AS value_as_concept_id, -- to add values
-    src.unit_concept_id                     AS unit_concept_id,
-    CAST(NULL AS FLOAT64)                   AS range_low,
-    CAST(NULL AS FLOAT64)                   AS range_high,
-    CAST(NULL AS INT64)                     AS provider_id,
-    vd.visit_occurrence_id                  AS visit_occurrence_id,
-    vd.visit_detail_id                      AS visit_detail_id,
-    CONCAT(src.source_code)                 AS measurement_source_value,  -- source value is changed
-    src.source_concept_id                           AS measurement_source_concept_id,
-    src.unit_source_value                   AS unit_source_value,
-    CAST(src.value_as_number AS STRING)     AS value_source_value, -- ?
+    `@etl_project.@etl_dataset`.obf_id_str(src.trace_id, 64)    AS measurement_id,
+    per.person_id                                               AS person_id,
+    COALESCE(src.target_concept_id, 0)                          AS measurement_concept_id,
+    CAST(src.start_datetime AS DATE)                            AS measurement_date,
+    src.start_datetime                                          AS measurement_datetime,
+    CAST(NULL AS STRING)                                        AS measurement_time, -- deprecated, to be removed in later versions
+    32817                                                       AS measurement_type_concept_id, -- OMOP4976890 EHR
+    CAST(NULL AS INT64)                                         AS operator_concept_id,
+    src.value_as_number                                         AS value_as_number,
+    CAST(NULL AS INT64)                                         AS value_as_concept_id, -- to add values
+    src.unit_concept_id                                         AS unit_concept_id,
+    CAST(NULL AS FLOAT64)                                       AS range_low,
+    CAST(NULL AS FLOAT64)                                       AS range_high,
+    CAST(NULL AS INT64)                                         AS provider_id,
+    vd.visit_occurrence_id                                      AS visit_occurrence_id,
+    vd.visit_detail_id                                          AS visit_detail_id,
+    CONCAT(src.source_code)                                     AS measurement_source_value,  -- source value is changed
+    src.source_concept_id                                       AS measurement_source_concept_id,
+    src.unit_source_value                                       AS unit_source_value,
+    CAST(src.value_as_number AS STRING)                         AS value_source_value, -- ?
     -- 
-    CONCAT('measurement.', src.unit_id)     AS unit_id,
-    src.load_table_id                       AS load_table_id,
-    src.load_row_id                         AS load_row_id,
-    src.trace_id                            AS trace_id
+    CONCAT('measurement.', src.unit_id)                         AS unit_id,
+    src.load_table_id                                           AS load_table_id,
+    src.load_row_id                                             AS load_row_id,
+    src.trace_id                                                AS trace_id
 FROM
     @etl_project.@etl_dataset.lk_meas_waveform_mapped src
 INNER JOIN
@@ -315,6 +326,8 @@ SELECT
     src.source_concept_id                   AS measurement_source_concept_id,
     src.unit_source_value                   AS unit_source_value,
     src.value_source_value                  AS value_source_value,
+    CAST(NULL AS INT64)                     AS measurement_event_id,
+    CAST(NULL AS INT64)                     AS meas_event_field_concept_id,
     --
     CONCAT('measurement.', src.unit_id)     AS unit_id,
     src.load_table_id               AS load_table_id,
@@ -327,6 +340,5 @@ INNER JOIN
         ON CAST(src.subject_id AS STRING) = per.person_source_value
 INNER JOIN
     `@etl_project`.@etl_dataset.cdm_visit_occurrence vis
-        ON  vis.visit_source_value =
-            CONCAT(CAST(src.subject_id AS STRING), '|', CAST(src.hadm_id AS STRING))
+        ON  vis.subject_id = src.subject_id AND vis.hadm_id = src.hadm_id
 ;

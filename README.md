@@ -52,13 +52,22 @@ The project implements an ETL conversion of MIMIC IV PhysioNet dataset to OMOP C
 - Use python script, process_transfer_waveforms.py from chorus-dev to generate year3_waveform_registry.csv and year3_waveform_channels_cut.csv. Upload to BigQuery as waveform_files and waveform_channels tables, respectively.
 - Run `etl/cdm_waveform_occurrence.sql`, `cdm_waveform_registry.sql`, `cdm_waveform_channel_metadata.sql` with `python scripts/run_workflow.py -e conf/<env>.etlconf -c conf/workflow_waveforms.conf`
 
+NOTE: the standard process for combining Athena and custom vocab (_delta talbes) going forward
+was set in: https://github.com/OHDSI/MIMIC/pull/37 . However, since the _delta tables are evolving 
+regularly, I've come up with a new temporary process which adds the master Athena tables to a 
+BQ dataset and any _delta tables to their own datasets. I then combine the Athena and all _delta tables
+by using a BQ VIEW. The workflow below reflects this based on scripts checked into `dev` in my 
+forked MIMIC-OHDSI repo.
 ```
-cd vocabulary_refresh
-python vocabulary_refresh.py -s10
-python vocabulary_refresh.py -s20
-python vocabulary_refresh.py -s30
+# cd vocabulary_refresh
+# python vocabulary_refresh.py -s10
+# python vocabulary_refresh.py -s20
+# python vocabulary_refresh.py -s30
+python scripts/upload_vocab_to_bq.py # do this for Athena and all custom vocabs one at a time, adding each to it's own BQ dataset
+scripts/create_vocab_views.sql # run this directly in BigQuery to setup a single view of all the vocabs
 cd ../
 python scripts/wf_read.py -e conf/<env>.etlconf
+python scripts/run_workflow.py -e conf/<env>.etlconf -c conf/workflow_setup.conf
 python scripts/run_workflow.py -e conf/<env>.etlconf -c conf/workflow_ddl.conf
 python scripts/run_workflow.py -e conf/<env>.etlconf -c conf/workflow_staging.conf
 python scripts/run_workflow.py -e conf/<env>.etlconf -c conf/workflow_etl.conf
