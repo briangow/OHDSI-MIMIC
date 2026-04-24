@@ -48,6 +48,10 @@ The project implements an ETL conversion of MIMIC IV PhysioNet dataset to OMOP C
 
 * set the project root (location of this file) as the current directory
 
+#### Waveforms
+- Use python script, process_transfer_waveforms.py from chorus-dev to generate year3_waveform_registry.csv and year3_waveform_channels_cut.csv. Upload to BigQuery as waveform_files and waveform_channels tables, respectively.
+- Run `etl/cdm_waveform_occurrence.sql`, `cdm_waveform_registry.sql`, `cdm_waveform_channel_metadata.sql` with `python scripts/run_workflow.py -e conf/<env>.etlconf -c conf/workflow_waveforms.conf`
+
 NOTE: the standard process for combining Athena and custom vocab (_delta talbes) going forward
 was set in: https://github.com/OHDSI/MIMIC/pull/37 . However, since the _delta tables are evolving 
 regularly, I've come up with a new temporary process which adds the master Athena tables to a 
@@ -67,6 +71,7 @@ python scripts/run_workflow.py -e conf/<env>.etlconf -c conf/workflow_setup.conf
 python scripts/run_workflow.py -e conf/<env>.etlconf -c conf/workflow_ddl.conf
 python scripts/run_workflow.py -e conf/<env>.etlconf -c conf/workflow_staging.conf
 python scripts/run_workflow.py -e conf/<env>.etlconf -c conf/workflow_etl.conf
+python scripts/run_workflow.py -e conf/<env>.etlconf -c conf/workflow_waveforms.conf
 python scripts/run_workflow.py -e conf/<env>.etlconf -c conf/workflow_ut.conf
 python scripts/run_workflow.py -e conf/<env>.etlconf -c conf/workflow_metrics.conf
 python scripts/run_workflow.py -e conf/<env>.etlconf -c conf/workflow_unload.conf
